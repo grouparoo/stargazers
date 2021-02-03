@@ -17,6 +17,7 @@
     "@octokit/plugin-paginate-rest": "^2.9.1",
     "@octokit/plugin-rest-endpoint-methods": "^4.10.1",
     "@octokit/rest": "^18.1.0",
+    "dotenv": "^8.2.0",
     "yargs": "^16.2.0"
   },
   "devDependencies": {
