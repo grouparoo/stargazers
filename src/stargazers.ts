@@ -5,8 +5,8 @@ import CsvStringify from "csv-stringify";
 
 export async function cmd(argsv: { [key: string]: any }) {
   console.log(".......... start");
-  const owner: string = process.env.REPO_OWNER ?? "";
-  const repo: string = process.env.REPO_NAME ?? "";
+  const owner: string = process.env.REPO_OWNER ?? "grouparoo";
+  const repo: string = process.env.REPO_NAME ?? "grouparoo";
   const auth: string = process.env.GITHUB_AUTH_TOKEN ?? "";
   const octokit = new Octokit({ auth });
 
