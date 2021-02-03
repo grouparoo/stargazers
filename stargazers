@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+const argv = require("yargs")
+  .help("h")
+  .alias("h", "help")
+  .example("$0", "lookup users that stars")
+  .count("verbose")
+  .alias("verbose", "v")
+  .describe("verbose", "show steps")
+  .usage("Usage: $0").argv;
+
+require("./src/stargazers")
+  .cmd(argv)
+  .then(
+    () => {
+      process.exit(0);
+    },
+    (error) => {
+      console.error(`ERROR! ${error}`);
+      process.exit(1);
+    }
+  );
