@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+process.env.NODE_ENV = process.env.NODE_ENV || "production";
+
 const argv = require("yargs")
   .help("h")
   .alias("h", "help")
@@ -8,7 +10,8 @@ const argv = require("yargs")
   .describe("verbose", "show steps")
   .usage("Usage: $0").argv;
 
-require("./src/stargazers")
+const dir = process.env.NODE_ENV === "development" ? "src" : "dist";
+require(`./${dir}/stargazers`)
   .cmd(argv)
   .then(
     () => {
