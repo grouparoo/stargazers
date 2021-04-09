@@ -2,6 +2,34 @@ import { Octokit } from "@octokit/rest";
 import fs from "fs";
 import path from "path";
 import CsvStringify from "csv-stringify";
+import parse from "csv-parse/lib/sync";
+
+const COLUMNS: UserKeys[] = [
+  "username",
+  "name",
+  "email",
+  "emailType",
+  "company",
+  "twitter",
+  "url",
+];
+
+interface User {
+  username?: string;
+  name?: string | null;
+  email?: string | null;
+  emailType?: string | null;
+  company?: string | null;
+  twitter?: string | null;
+  url?: string | null;
+  input?: { [column: string]: string };
+}
+
+type UserKeys = keyof User;
+
+interface UserMap {
+  [username: string]: User;
+}
 
 export async function cmd(argsv: { [key: string]: any }) {
   console.log(".......... start");
@@ -16,42 +44,85 @@ export async function cmd(argsv: { [key: string]: any }) {
     per_page: 100,
   };
 
-  const data: UserMap = {};
+  const { data, columns } = parseInput();
+
+  console.log("\n.......... fetching stargazers");
 
   for await (const response of octokit.paginate.iterator(
     octokit.activity.listStargazersForRepo,
     parameters
   )) {
-    const test = null; //[{ login: "bleonard" }];
+    const test = null; // [{ login: "bleonard" }];
     const stargazers = response.data;
     for (const gazer of test || stargazers) {
-      if (gazer) {
-        const user = await processUser(octokit, gazer.login);
-        if (!data[user.username]) {
-          data[user.username] = user;
+      if (gazer && gazer.login) {
+        if (!data[gazer.login]) {
+          const user = await processUser(octokit, gazer.login);
+          data[gazer.login] = user;
         }
       }
     }
   }
 
-  await writeToCsv(data);
-  console.log(".......... done");
+  await writeToCsv(data, columns);
+  console.log("\n.......... done");
 }
 
-interface User {
-  username: string;
-  name: string | null;
-  email: string | null;
-  emailType: string | null;
-  company: string | null;
-  twitter: string | null;
-  url: string | null;
-}
+function parseInput(): { data: UserMap; columns: string[] } {
+  const data: UserMap = {};
+  const filename = path.resolve(
+    path.join(process.env.PWD || "./", "input.csv")
+  );
 
-type UserKeys = keyof User;
+  if (!fs.existsSync(filename)) {
+    return { data, columns: COLUMNS };
+  }
 
-interface UserMap {
-  [username: string]: User;
+  console.log("\n.......... parsing input.csv");
+
+  const rows = parse(fs.readFileSync(filename), {
+    skip_empty_lines: true,
+  });
+
+  const inputColumns: string[] = rows[0];
+  if (!inputColumns) {
+    return { data, columns: COLUMNS };
+  }
+  if (!inputColumns.includes("username")) {
+    throw new Error("input.csv needs a username");
+  }
+
+  for (let rowNum = 1; rowNum < rows.length; rowNum++) {
+    const row = rows[rowNum];
+    const user: User = {};
+    for (let colNum = 0; colNum < inputColumns.length; colNum++) {
+      const key = inputColumns[colNum];
+      const value = row[colNum];
+      switch (key) {
+        case "username":
+        case "name":
+        case "email":
+        case "emailType":
+        case "company":
+        case "twitter":
+        case "url":
+          user[key] = value;
+          break;
+        default:
+          user["input"] = user["input"] || {};
+          user["input"][key] = value;
+          break;
+      }
+    }
+    if (user.username) {
+      console.log(user.username);
+      data[user.username] = user;
+    } else {
+      console.log(`NO USERNAME: row ${rowNum}`);
+    }
+  }
+
+  return { data, columns: inputColumns };
 }
 
 async function processUser(octokit: Octokit, username: string): Promise<User> {
@@ -83,6 +154,7 @@ async function processUser(octokit: Octokit, username: string): Promise<User> {
     url,
     twitter,
     company,
+    input: {},
   };
 }
 
@@ -131,19 +203,10 @@ async function emailFromEvents(
   return email;
 }
 
-async function writeToCsv(data: UserMap) {
+async function writeToCsv(data: UserMap, columns: string[]) {
   const filename = path.resolve(
     path.join(process.env.PWD || "./", "stargazers.csv")
   );
-  const columns: UserKeys[] = [
-    "username",
-    "name",
-    "email",
-    "emailType",
-    "company",
-    "twitter",
-    "url",
-  ];
 
   if (fs.existsSync(filename)) fs.unlinkSync(filename);
   const fileStream = fs.createWriteStream(filename);
@@ -151,8 +214,11 @@ async function writeToCsv(data: UserMap) {
   csvStream.pipe(fileStream);
 
   for (const username in data) {
-    const user = data[username];
-    csvStream.write(user);
+    const user: any = Object.assign({}, data[username]);
+    const inputs = user.input;
+    delete user.input;
+    const values = Object.assign(user, inputs);
+    csvStream.write(values);
   }
 
   // wait for the file handle to close
